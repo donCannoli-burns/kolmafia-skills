@@ -9,3 +9,5 @@ A created skill has two KoLmafia-native aliases: `agentskill.<name>` stores `AGE
 Machine markers remain `AGENTSKILL_DEF:v1:`, `AGENTSKILL_BEGIN|v=1|...`, `AGENTSKILL_END|v=1|...`, and `AGENTSKILL_SYNC|v=1|reason=...`.
 
 `call agent_skill_relay.js --install` installs/repairs the built-ins, removes the legacy `/skill` alias, preloads `make-a-new-skill`, and enables `agentSkill`. Skill definitions are guidance, not execution authorization.
+
+Safety guard: `/skill` is intentionally aliased to a non-network relay warning. KoLmafia routes otherwise-unmatched leading-slash gCLI input to its chat macro sender, so the guard prevents a typo from becoming a live chat slash command.

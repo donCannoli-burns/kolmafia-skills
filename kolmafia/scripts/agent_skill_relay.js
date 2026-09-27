@@ -111,8 +111,8 @@ function listSkills() {
 }
 
 function installBuiltins() {
-  km.cliExecute("unalias /skill");
   var commands = [
+    "alias /skill => call agent_skill_relay.js --legacy-guard",
     "alias /skill@--help => call agent_skill_relay.js --help",
     "alias /skill@--list => call agent_skill_relay.js --list",
     "alias /skill@--sync => call agent_skill_relay.js --sync",
@@ -204,6 +204,11 @@ function main() {
 
   if (raw === "--install" || raw === "install") {
     installBuiltins();
+    return;
+  }
+
+  if (raw.indexOf("--legacy-guard") === 0) {
+    km.print("Bare /skill is disabled as a safety guard. Use /skill@--help, /skill@--list, /skill@make-a-new-skill, or /skill@<name>.", "red");
     return;
   }
 

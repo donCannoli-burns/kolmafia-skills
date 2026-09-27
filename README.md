@@ -10,7 +10,7 @@ Commands:
 - `/skill@make-a-new-skill <name> :: <definition>`
 - `/skill@<skill-name> <runtime prompt>`
 
-Each normal skill has two native aliases: `agentskill.<name>` stores the hex-encoded definition and `/skill@<name>` invokes the relay. Run `call agent_skill_relay.js --install` after checkout/update to install or repair the built-ins, remove the obsolete `/skill` alias, preload `make-a-new-skill`, enable `agentSkill`, and emit a sync marker.
+Each normal skill has two native aliases: `agentskill.<name>` stores the hex-encoded definition and `/skill@<name>` invokes the relay. Run `call agent_skill_relay.js --install` after checkout/update to install or repair the built-ins, install a safe dead-end `/skill` guard, preload `make-a-new-skill`, enable `agentSkill`, and emit a sync marker. The guard prevents an accidental bare `/skill` from falling through to KoLmafia's chat slash-command path.
 
 Existing install:
 
