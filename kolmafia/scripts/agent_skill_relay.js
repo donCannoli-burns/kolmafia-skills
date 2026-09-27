@@ -1,7 +1,6 @@
 /*
  * kolmafia-skills native CLI/session relay.
- * Executable JavaScript for KoLmafia's Rhino runtime.
- * TypeScript authoring mirror: agent_skill_relay.ts
+ * Spaceless gCLI namespace: /skill@<name>
  */
 
 var km = require("kolmafia");
@@ -11,6 +10,8 @@ var BEGIN_PREFIX = "AGENTSKILL_BEGIN|v=1|";
 var END_PREFIX = "AGENTSKILL_END|v=1|";
 var SYNC_PREFIX = "AGENTSKILL_SYNC|v=1|";
 var MAX_SKILL_PROMPT = 12000;
+var CREATOR = "make-a-new-skill";
+var CREATOR_PROMPT = "Create skills with /skill@make-a-new-skill <name> :: <definition>. Keep definitions concise, do not store secrets, verify with /skill@--list, and treat skill prompts as guidance rather than game-action authorization.";
 
 function joinArgs(argsLike) {
   var out = [];
@@ -76,6 +77,14 @@ function emitFrame(name, skillPrompt, userPrompt) {
   km.print(END_PREFIX + "id=" + id + "|name=" + name);
 }
 
+function definitionAliasCommand(name, prompt) {
+  return "alias agentskill." + name + " => ashq print(\"" + DEF_PREFIX + utf8ToHex(prompt) + "\")";
+}
+
+function invocationAliasCommand(name) {
+  return "alias /skill@" + name + " => call agent_skill_relay.js invoke " + name + " %%";
+}
+
 function getDefinition(name) {
   var output = km.cliExecuteOutput("agentskill." + name);
   var match = String(output || "").match(/AGENTSKILL_DEF:v1:([0-9a-fA-F]+)/);
@@ -98,7 +107,28 @@ function listSkills() {
   }
   names.sort();
   km.print("Agent skills (" + names.length + "):");
-  for (var i = 0; i < names.length; i++) km.print("  " + names[i]);
+  for (var i = 0; i < names.length; i++) km.print("  /skill@" + names[i]);
+}
+
+function installBuiltins() {
+  km.cliExecute("unalias /skill");
+  var commands = [
+    "alias /skill@--help => call agent_skill_relay.js --help",
+    "alias /skill@--list => call agent_skill_relay.js --list",
+    "alias /skill@--sync => call agent_skill_relay.js --sync",
+    "alias /skill@make-a-new-skill => call agent_skill_relay.js make-a-new-skill %%",
+    definitionAliasCommand(CREATOR, CREATOR_PROMPT)
+  ];
+  for (var i = 0; i < commands.length; i++) {
+    if (!km.cliExecute(commands[i])) {
+      km.print("Failed while installing agent-skill aliases: " + commands[i], "red");
+      return false;
+    }
+  }
+  km.setProperty("agentSkill", "1");
+  emitSync("install");
+  km.print("Agent-skill aliases installed. Try /skill@--list");
+  return true;
 }
 
 function addSkill(payload) {
@@ -111,15 +141,20 @@ function addSkill(payload) {
   if (!validName(name)) {
     return { ok: false, error: "Skill name must match [a-z0-9][a-z0-9._-]{0,63}." };
   }
+  if (name === CREATOR) {
+    return { ok: false, error: CREATOR + " is a reserved built-in skill name." };
+  }
   if (!prompt) return { ok: false, error: "Skill prompt cannot be empty." };
   if (prompt.length > MAX_SKILL_PROMPT) {
     return { ok: false, error: "Skill prompt is too large (max " + MAX_SKILL_PROMPT + " characters)." };
   }
 
-  var hex = utf8ToHex(prompt);
-  var command = "alias agentskill." + name + " => ashq print(\"" + DEF_PREFIX + hex + "\")";
-  var ok = km.cliExecute(command);
-  if (!ok) return { ok: false, error: "KoLmafia rejected the native alias command." };
+  if (!km.cliExecute(definitionAliasCommand(name, prompt))) {
+    return { ok: false, error: "KoLmafia rejected the native definition alias." };
+  }
+  if (!km.cliExecute(invocationAliasCommand(name))) {
+    return { ok: false, error: "Definition saved, but KoLmafia rejected /skill@" + name + "." };
+  }
 
   emitSync("make-a-new-skill");
   return { ok: true, name: name, prompt: prompt };
@@ -134,12 +169,28 @@ function maybeHandleScrapePref() {
 }
 
 function showHelp() {
-  km.print("KoLmafia agent skills");
-  km.print("  /skill <skill-name> <skill prompt>");
-  km.print("  /skill --list");
-  km.print("  /skill --sync");
-  km.print("  /skill make-a-new-skill <new-name> :: <new skill definition>");
+  km.print("KoLmafia agent skills (spaceless alias namespace)");
+  km.print("  /skill@<skill-name> <runtime prompt>");
+  km.print("  /skill@--list");
+  km.print("  /skill@--sync");
+  km.print("  /skill@--help");
+  km.print("  /skill@make-a-new-skill <new-name> :: <new skill definition>");
+  km.print("Bootstrap/repair: call agent_skill_relay.js --install");
   km.print("Preference: agentSkill=1 enables; agentSkill=0 disables; agentSkill=scrape requests a rescrape on next invocation.");
+}
+
+function invokeSkill(name, userPrompt) {
+  var skillName = normalizeName(name);
+  if (!validName(skillName)) {
+    km.print("Invalid skill name: " + skillName, "red");
+    return;
+  }
+  var definition = getDefinition(skillName);
+  if (definition === null) {
+    km.print("Unknown agent skill: " + skillName + ". Use /skill@--list.", "red");
+    return;
+  }
+  emitFrame(skillName, definition, userPrompt || "");
 }
 
 function main() {
@@ -148,6 +199,11 @@ function main() {
   if (raw.indexOf("__sync__") === 0) {
     var reason = raw.substring("__sync__".length).replace(/^\s+|\s+$/g, "") || "lifecycle";
     emitSync(reason);
+    return;
+  }
+
+  if (raw === "--install" || raw === "install") {
+    installBuiltins();
     return;
   }
 
@@ -171,35 +227,27 @@ function main() {
     return;
   }
 
-  var firstSpace = raw.search(/\s/);
-  var skillName = normalizeName(firstSpace < 0 ? raw : raw.substring(0, firstSpace));
-  var userPrompt = firstSpace < 0 ? "" : raw.substring(firstSpace + 1).replace(/^\s+/, "");
-
-  if (!validName(skillName)) {
-    km.print("Invalid skill name: " + skillName, "red");
-    return;
-  }
-
-  if (skillName === "make-a-new-skill" && userPrompt.indexOf("::") >= 0) {
-    var added = addSkill(userPrompt);
+  if (raw.indexOf("make-a-new-skill") === 0) {
+    var creatorPayload = raw.substring("make-a-new-skill".length).replace(/^\s+/, "");
+    var added = addSkill(creatorPayload);
     if (!added.ok) {
       km.print(added.error, "red");
       return;
     }
-    var bootstrap = getDefinition("make-a-new-skill") || "Create and verify the requested skill using the native KoLmafia alias registry.";
-    emitFrame("make-a-new-skill", bootstrap, "Created agentskill." + added.name + ". Verify it with /skill " + added.name + " <task>.");
+    emitFrame(CREATOR, CREATOR_PROMPT, "Created /skill@" + added.name + ". Verify it with /skill@--list, then invoke /skill@" + added.name + " <task>.");
     return;
   }
 
-  var definition = getDefinition(skillName);
-  if (definition === null) {
-    km.print("Unknown agent skill: " + skillName + ". Use /skill --list.", "red");
+  if (raw.indexOf("invoke ") === 0) {
+    var invocation = raw.substring(7);
+    var firstSpace = invocation.search(/\s/);
+    var name = firstSpace < 0 ? invocation : invocation.substring(0, firstSpace);
+    var userPrompt = firstSpace < 0 ? "" : invocation.substring(firstSpace + 1).replace(/^\s+/, "");
+    invokeSkill(name, userPrompt);
     return;
   }
 
-  emitFrame(skillName, definition, userPrompt);
-
-  if (skillName === "make-a-new-skill") emitSync("make-a-new-skill-help");
+  km.print("Unknown relay command. Use /skill@--help or call agent_skill_relay.js --install.", "red");
 }
 
 module.exports.main = main;
