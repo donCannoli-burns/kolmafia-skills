@@ -110,6 +110,14 @@ function listSkills() {
   for (var i = 0; i < names.length; i++) km.print("  /skill@" + names[i]);
 }
 
+function installCallableAliases(commands) {
+  if (!km.gitExists || !km.gitExists("donCannoli-burns-don_combo-release")) return;
+  commands.push("alias agentcall.combo => call don_combo/don_combo_listener.ash combo %%");
+  commands.push("alias agentcall.combo-matrix => call don_combo/don_combo_listener.ash refresh combo-matrix");
+  commands.push("alias agentcall.combo-smoke => call don_combo/don_combo_listener.ash smoke excavator");
+  commands.push("alias combo => call don_combo/don_combo_listener.ash combo %%");
+}
+
 function installBuiltins() {
   var commands = [
     "alias /skill => call agent_skill_relay.js --legacy-guard",
@@ -119,6 +127,7 @@ function installBuiltins() {
     "alias /skill@make-a-new-skill => call agent_skill_relay.js make-a-new-skill %%",
     definitionAliasCommand(CREATOR, CREATOR_PROMPT)
   ];
+  installCallableAliases(commands);
   for (var i = 0; i < commands.length; i++) {
     if (!km.cliExecute(commands[i])) {
       km.print("Failed while installing agent-skill aliases: " + commands[i], "red");
@@ -177,6 +186,7 @@ function showHelp() {
   km.print("  /skill@make-a-new-skill <new-name> :: <new skill definition>");
   km.print("Bootstrap/repair: call agent_skill_relay.js --install");
   km.print("Preference: agentSkill=1 enables; agentSkill=0 disables; agentSkill=scrape requests a rescrape on next invocation.");
+  km.print("Callable adapters, when installed: agentcall.combo, agentcall.combo-matrix, agentcall.combo-smoke.");
 }
 
 function invokeSkill(name, userPrompt) {
