@@ -29,3 +29,24 @@ Create and invoke:
 ```
 
 Skill names must match `[a-z0-9][a-z0-9._-]{0,63}`. The Python bridge remains read-only and reads the native alias registry/session framing; skill prompts are guidance, not execution authorization.
+
+
+## Callable adapters
+
+`kolmafia-skills` can also install bounded callable aliases for compatible installed projects. These are separate from prompt skills:
+
+```text
+agentskill.*    guidance / prompt definitions
+agentcall.*     concrete local callable adapters
+```
+
+When `donCannoli-burns-don_combo-release` is installed, `call agent_skill_relay.js --install` adds:
+
+```text
+agentcall.combo
+agentcall.combo-matrix
+agentcall.combo-smoke
+combo
+```
+
+`combo` maps to the don_combo ASH wrapper, which calls the deterministic Combo script, writes a flat native `string[string]` runtime request with `map_to_file()`, invokes the typed TypeScript advisory runtime, and returns. Callable registration is routing metadata, not additional game authority.
