@@ -115,7 +115,8 @@ function installCallableAliases(commands) {
   commands.push("alias agentcall.combo => call don_combo/don_combo_listener.ash combo %%");
   commands.push("alias agentcall.combo-matrix => call don_combo/don_combo_listener.ash refresh combo-matrix");
   commands.push("alias agentcall.combo-smoke => call don_combo/don_combo_listener.ash smoke excavator");
-  commands.push("alias combo => call don_combo/don_combo_listener.ash combo %%");
+  // Use guarded Don Combo entrypoint so re-running --install does not remove the hook check.
+  commands.push("alias combo => call don_combo.js run %%");
 }
 
 function installBuiltins() {
